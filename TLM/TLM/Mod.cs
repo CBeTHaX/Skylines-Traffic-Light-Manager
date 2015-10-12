@@ -5,6 +5,9 @@ using ColossalFramework.Math;
 using ColossalFramework.UI;
 using ICities;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
+using System.Xml.Serialization;
+using System.IO;
 
 namespace TrafficManager
 {
@@ -28,38 +31,65 @@ namespace TrafficManager
         public string Description
         {
             get { return "Manage traffic junctions"; }
-        }
+        }			
 
 		public void ResetInGameData(bool value) {
-			TMTemporaryOptions.Instance().ResetSaveData = value;
+			TMOptions options = TMOptions.LoadOptions();
+			options.ResetSaveData = value;
+			options.SaveOptions();
 		}
 
 		public void OnSettingsUI(UIHelperBase helper)
 		{
+			TMOptions options = TMOptions.LoadOptions();
 			UIHelperBase group = helper.AddGroup("Traffic Manager");
-			group.AddCheckbox("Reset in game data", false, ResetInGameData);
+			group.AddCheckbox("Reset in game data (this flag is disabled after first save)", options.ResetSaveData, ResetInGameData);
 
 		}
     }
 
-	/* Just a temporary solution for "reset in save data" option. If the in save data works,
-	 * we have to put this in real option class. Atm the value is resetted to false everytime
-	 * the user starts the game. */
-	public class TMTemporaryOptions {
+	public class TMOptions {
+		public bool ResetSaveData = false;
 
-		private static TMTemporaryOptions instance = null;
-
-		public bool ResetSaveData { get; set; }
-
-		private TMTemporaryOptions() {
-			this.ResetSaveData = false;
+		public static TMOptions LoadOptions() {
+			try
+			{
+				XmlSerializer xmlSerializer = new XmlSerializer(typeof(TMOptions));
+				using (StreamReader streamReader = new StreamReader("TrafficManager.xml"))
+				{
+					return (TMOptions)xmlSerializer.Deserialize(streamReader);
+				}
+			}
+			catch (Exception e)
+			{
+				Debug.LogError("Unexpected " + e.GetType().Name + " loading options: " + e.Message + "\n" + e.StackTrace);
+				TMOptions options = new TMOptions();
+				SaveOptions(options);
+				return options;
+			}
 		}
 
-		public static TMTemporaryOptions Instance() {
-			if (instance == null)
-				instance = new TMTemporaryOptions ();
-			return instance;
+
+		public void SaveOptions() {
+			SaveOptions (this);
 		}
+
+		public static void SaveOptions(TMOptions options)
+		{
+			try
+			{
+				XmlSerializer xmlSerializer = new XmlSerializer(typeof(TMOptions));
+				using (StreamWriter streamWriter = new StreamWriter("TrafficManager.xml"))
+				{
+					xmlSerializer.Serialize(streamWriter, options);
+				}
+			}
+			catch (Exception e)
+			{
+				Debug.LogError("Unexpected " + e.GetType().Name + " saving options: " + e.Message + "\n" + e.StackTrace);
+			}
+		}
+
 	}
 
     public sealed class ThreadingExtension : ThreadingExtensionBase

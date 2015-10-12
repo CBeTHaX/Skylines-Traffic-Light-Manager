@@ -33,10 +33,10 @@ namespace TrafficManager
 			
         public void OnLoadData()
         {
-
+			TMOptions modOptions = TMOptions.LoadOptions();
 			// Skip the data loading. This is usefull if the data is broken and you want to
 			// recover your save.
-			if (TMTemporaryOptions.Instance().ResetSaveData)
+			if (modOptions.ResetSaveData)
 				return;
 				
             byte[] data = SerializableData.LoadData(dataID);
@@ -44,39 +44,36 @@ namespace TrafficManager
 			if (data == null) {
 				data = SerializableData.LoadData (dataIDOld);
 				if (data != null) {
-					_timer = new System.Timers.Timer(2000);
-					// Hook up the Elapsed event for the timer. 
-					_timer.Elapsed += OnLoadDataTimed;
-					_timer.Enabled = true;
+					UInt32 uniqueID = 0u;
+
+					for (var i = 0; i < data.Length - 3; i++) {
+						uniqueID = BitConverter.ToUInt32 (data, i);
+					}
+
+					var filepath = Path.Combine (Application.dataPath, "trafficManagerSave_" + uniqueID + ".xml");
+
+					if (!File.Exists (filepath)) {
+						return;
+					}
+
+					configuration = Configuration.DeserializeFile (filepath);
 				}
 			} else {
-				var configuration = Configuration.Deserialize(data);
-				LoadConfiguration (configuration);
+				configuration = Configuration.Deserialize(data);
+			}
+
+			if (configuration != null) {
+				// This a void a null exception on loading
+				_timer = new System.Timers.Timer(2000);
+				// Hook up the Elapsed event for the timer. 
+				_timer.Elapsed += OnLoadDataTimed;
+				_timer.Enabled = true;
 			}
         }
 
-        private static void OnLoadDataTimed(System.Object source, ElapsedEventArgs e)
+        private void OnLoadDataTimed(System.Object source, ElapsedEventArgs e)
 		{
-			byte[] data = SerializableData.LoadData (dataIDOld);
-
-			UInt32 uniqueID = 0u;
-
-			for (var i = 0; i < data.Length - 3; i++) {
-				uniqueID = BitConverter.ToUInt32 (data, i);
-			}
-
-			var filepath = Path.Combine (Application.dataPath, "trafficManagerSave_" + uniqueID + ".xml");
-			_timer.Enabled = false;
-
-			if (!File.Exists (filepath)) {
-                
-				return;
-			}
-
-			var configuration = Configuration.DeserializeFile (filepath);
-
 			LoadConfiguration (configuration);
-
 		}
 
 		private static void LoadConfiguration(Configuration configuration) {
@@ -229,7 +226,7 @@ namespace TrafficManager
         public void OnSaveData()
         {
 		
-            var configuration = new Configuration();
+            configuration = new Configuration();
 
             for (var i = 0; i < 32768; i++)
             {
@@ -358,6 +355,14 @@ namespace TrafficManager
 
             var dataToSave = Configuration.Serialize(configuration);
 			SerializableData.SaveData(dataID, dataToSave);
+
+			TMOptions modOptions = TMOptions.LoadOptions();
+
+			// Clear the reset data status
+			if (modOptions.ResetSaveData) {
+				modOptions.ResetSaveData = false;
+				modOptions.SaveOptions();
+			}			
         }
     }
 

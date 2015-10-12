@@ -13,72 +13,73 @@ namespace TrafficManager
 {
     public class SerializableDataExtension : ISerializableDataExtension
     {
-        public static string dataID = "TrafficManager_v0.9";
-        public static UInt32 uniqueID;
+        public static string dataIDOld = "TrafficManager_v0.9";
+		public static string dataID = "TrafficManager_v0.9.1";
 
         public static ISerializableData SerializableData;
+
+		private Configuration configuration = null;
 
         private static Timer _timer;
 
         public void OnCreated(ISerializableData serializableData)
         {
-            uniqueID = 0u;
             SerializableData = serializableData;
         }
 
         public void OnReleased()
         {
         }
-
-        public static void GenerateUniqueID()
-        {
-            uniqueID = (uint)UnityEngine.Random.Range(1000000f, 2000000f);
-
-            while (File.Exists(Path.Combine(Application.dataPath, "trafficManagerSave_" + uniqueID + ".xml")))
-            {
-                uniqueID = (uint)UnityEngine.Random.Range(1000000f, 2000000f);
-            }
-        }
-
+			
         public void OnLoadData()
         {
+
+			// Skip the data loading. This is usefull if the data is broken and you want to
+			// recover your save.
+			if (TMTemporaryOptions.Instance().ResetSaveData)
+				return;
+				
             byte[] data = SerializableData.LoadData(dataID);
 
-            if (data == null)
-            {
-                GenerateUniqueID();
-            }
-            else
-            {
-                _timer = new System.Timers.Timer(2000);
-                // Hook up the Elapsed event for the timer. 
-                _timer.Elapsed += OnLoadDataTimed;
-                _timer.Enabled = true;
-            }
+			if (data == null) {
+				data = SerializableData.LoadData (dataIDOld);
+				if (data != null) {
+					_timer = new System.Timers.Timer(2000);
+					// Hook up the Elapsed event for the timer. 
+					_timer.Elapsed += OnLoadDataTimed;
+					_timer.Enabled = true;
+				}
+			} else {
+				var configuration = Configuration.Deserialize(data);
+				LoadConfiguration (configuration);
+			}
         }
 
         private static void OnLoadDataTimed(System.Object source, ElapsedEventArgs e)
-        {
-            byte[] data = SerializableData.LoadData(dataID);
+		{
+			byte[] data = SerializableData.LoadData (dataIDOld);
 
-            uniqueID = 0u;
+			UInt32 uniqueID = 0u;
 
-            for (var i = 0; i < data.Length - 3; i++)
-            {
-                uniqueID = BitConverter.ToUInt32(data, i);
-            }
+			for (var i = 0; i < data.Length - 3; i++) {
+				uniqueID = BitConverter.ToUInt32 (data, i);
+			}
 
-            var filepath = Path.Combine(Application.dataPath, "trafficManagerSave_" + uniqueID + ".xml");
-            _timer.Enabled = false;
+			var filepath = Path.Combine (Application.dataPath, "trafficManagerSave_" + uniqueID + ".xml");
+			_timer.Enabled = false;
 
-            if (!File.Exists(filepath))
-            {
+			if (!File.Exists (filepath)) {
                 
-                return;
-            }
+				return;
+			}
 
-            var configuration = Configuration.Deserialize(filepath);
+			var configuration = Configuration.DeserializeFile (filepath);
 
+			LoadConfiguration (configuration);
+
+		}
+
+		private static void LoadConfiguration(Configuration configuration) {
             for (var i = 0; i < configuration.prioritySegments.Count; i++)
             {
                 if (
@@ -227,22 +228,7 @@ namespace TrafficManager
 
         public void OnSaveData()
         {
-
-            FastList<byte> data = new FastList<byte>();
-
-            GenerateUniqueID(); 
-
-            byte[] uniqueIdBytes = BitConverter.GetBytes(uniqueID);
-            foreach (byte uniqueIdByte in uniqueIdBytes)
-            {
-                data.Add(uniqueIdByte);
-            }
-
-            byte[] dataToSave = data.ToArray();
-            SerializableData.SaveData(dataID, dataToSave);
-
-            var filepath = Path.Combine(Application.dataPath, "trafficManagerSave_" + uniqueID + ".xml");
-
+		
             var configuration = new Configuration();
 
             for (var i = 0; i < 32768; i++)
@@ -370,7 +356,8 @@ namespace TrafficManager
                 }
             }
 
-            Configuration.Serialize(filepath, configuration);
+            var dataToSave = Configuration.Serialize(configuration);
+			SerializableData.SaveData(dataID, dataToSave);
         }
     }
 
@@ -397,7 +384,7 @@ namespace TrafficManager
         {
         }
 
-        public static void Serialize(string filename, Configuration config)
+        public static void SerializeFile(string filename, Configuration config)
         {
             var serializer = new XmlSerializer(typeof(Configuration));
 
@@ -408,7 +395,7 @@ namespace TrafficManager
             }
         }
 
-        public static Configuration Deserialize(string filename)
+        public static Configuration DeserializeFile(string filename)
         {
             var serializer = new XmlSerializer(typeof(Configuration));
 
@@ -425,5 +412,35 @@ namespace TrafficManager
 
             return null;
         }
+
+		public static Configuration Deserialize(byte[] data)
+		{
+			var serializer = new XmlSerializer(typeof(Configuration));
+
+			try
+			{
+				using (var reader = new MemoryStream(data))
+				{
+					var config = (Configuration)serializer.Deserialize(reader);
+					config.OnPostDeserialize();
+					return config;
+				}
+			}
+			catch { }
+
+			return null;
+		}
+
+		public static byte[] Serialize(Configuration config)
+		{
+			var serializer = new XmlSerializer(typeof(Configuration));
+
+			using (var writer = new MemoryStream())
+			{
+				config.OnPreSerialize();
+				serializer.Serialize(writer, config);
+				return writer.ToArray();
+			}
+		}
     }
 }

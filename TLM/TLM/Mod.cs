@@ -29,7 +29,38 @@ namespace TrafficManager
         {
             get { return "Manage traffic junctions"; }
         }
+
+		public void ResetInGameData(bool value) {
+			TMTemporaryOptions.Instance().ResetSaveData = value;
+		}
+
+		public void OnSettingsUI(UIHelperBase helper)
+		{
+			UIHelperBase group = helper.AddGroup("Traffic Manager");
+			group.AddCheckbox("Reset in game data", false, ResetInGameData);
+
+		}
     }
+
+	/* Just a temporary solution for "reset in save data" option. If the in save data works,
+	 * we have to put this in real option class. Atm the value is resetted to false everytime
+	 * the user starts the game. */
+	public class TMTemporaryOptions {
+
+		private static TMTemporaryOptions instance = null;
+
+		public bool ResetSaveData { get; set; }
+
+		private TMTemporaryOptions() {
+			this.ResetSaveData = false;
+		}
+
+		public static TMTemporaryOptions Instance() {
+			if (instance == null)
+				instance = new TMTemporaryOptions ();
+			return instance;
+		}
+	}
 
     public sealed class ThreadingExtension : ThreadingExtensionBase
     {

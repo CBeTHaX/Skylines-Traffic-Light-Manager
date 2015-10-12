@@ -20,18 +20,14 @@ namespace TrafficManager
 
         private static Timer _timer;
 
-        private static bool loaded = false;
-
         public void OnCreated(ISerializableData serializableData)
         {
             uniqueID = 0u;
             SerializableData = serializableData;
-            loaded = false;
         }
 
         public void OnReleased()
         {
-            loaded = false;
         }
 
         public static void GenerateUniqueID()
